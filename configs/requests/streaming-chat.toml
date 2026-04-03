@@ -1,0 +1,6 @@
+temperature = 0.2
+top_p = 0.95
+max_tokens = 800
+stream = true
+timeout_seconds = 600
+response_format = "text"

@@ -1,0 +1,5 @@
+[server]
+ctx_size = 32768
+
+[context]
+max_input_chars = 32000

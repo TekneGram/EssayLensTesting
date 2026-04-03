@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "overall_assessment": {
+      "type": "string"
+    },
+    "strengths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "weaknesses": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "next_revision_steps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "overall_assessment",
+    "strengths",
+    "weaknesses",
+    "next_revision_steps"
+  ]
+}

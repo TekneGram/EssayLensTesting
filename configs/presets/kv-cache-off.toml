@@ -1,0 +1,4 @@
+[server.kv_cache]
+prompt_cache = false
+cache_reuse = 0
+kv_offload = false

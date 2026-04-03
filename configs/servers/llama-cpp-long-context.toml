@@ -1,0 +1,18 @@
+backend = "llama_cpp"
+host = "127.0.0.1"
+port = 8081
+threads = 8
+ctx_size = 32768
+batch_size = 2048
+ubatch_size = 512
+n_predict = 2048
+webui = false
+extra_args = []
+
+[kv_cache]
+prompt_cache = true
+cache_reuse = 256
+type_k = "f16"
+type_v = "f16"
+kv_offload = true
+slot_save_path = "var/slots/long-context"

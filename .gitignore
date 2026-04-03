@@ -1,1 +1,11 @@
-third_party
+third_party/
+.pytest_cache/
+__pycache__/
+*.pyc
+build/
+dist/
+*.egg-info/
+var/log/
+var/run/
+runs/
+assets/

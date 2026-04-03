@@ -1,0 +1,3 @@
+[server.kv_cache]
+prompt_cache = true
+cache_reuse = 256

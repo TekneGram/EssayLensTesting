@@ -1,0 +1,15 @@
+model = "gemma4"
+server = "llama-cpp-default"
+request = "default-chat"
+presets = ["kv-cache-reuse"]
+
+[context]
+max_input_chars = 24000
+strategy = "truncate_head"
+persist_messages = false
+system_prompt_path = "prompts/system/essay_feedback_system.md"
+
+[runtime]
+pid_file = "var/run/local-gemma-fast.pid"
+log_file = "var/log/local-gemma-fast.log"
+startup_timeout_seconds = 60
