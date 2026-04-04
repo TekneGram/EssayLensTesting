@@ -1,1 +1,0 @@
-"""Essay Lens testing harness."""

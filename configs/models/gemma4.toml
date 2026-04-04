@@ -1,6 +1,0 @@
-name = "gemma-4"
-alias = "gemma-4-local"
-model_path = "assets/models/gemma-4-E4B-it-Q4_K_M.gguf"
-chat_template = "gemma"
-n_gpu_layers = "auto"
-notes = "Default local Gemma profile for Essay Lens testing."
