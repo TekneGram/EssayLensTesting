@@ -1,0 +1,4 @@
+description = "Set context window to 4K tokens."
+
+[server]
+ctx_size = 4096

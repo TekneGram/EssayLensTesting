@@ -1,0 +1,6 @@
+description = "Low-variance sampling for reproducible experiments."
+
+[request]
+temperature = 0.0
+top_k = 40
+top_p = 1.0

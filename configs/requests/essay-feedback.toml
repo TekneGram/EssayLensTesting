@@ -1,0 +1,7 @@
+api_mode = "chat"
+system_prompt_file = "prompts/essay_feedback_system.txt"
+prompt_file = "prompts/essay_feedback_user.md"
+max_tokens = 512
+temperature = 0.2
+top_p = 0.95
+stream = false

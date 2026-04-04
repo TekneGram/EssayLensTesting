@@ -1,0 +1,4 @@
+description = "Cap generations to a short output."
+
+[request]
+max_tokens = 192

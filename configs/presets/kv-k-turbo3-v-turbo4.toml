@@ -1,0 +1,5 @@
+description = "Use turbo3 for keys and turbo4 for values."
+
+[server]
+cache_type_k = "turbo3"
+cache_type_v = "turbo4"

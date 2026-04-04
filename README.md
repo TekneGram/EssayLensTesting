@@ -160,29 +160,105 @@ When running in a normal local Terminal session, check the server log for Metal 
 grep -nE "using device|offloading|MTL" /tmp/llama_server_metal.log
 ```
 
-## Runtime files
 
-- PID files: `var/run/*.pid`
-- Server logs: `var/log/*.log`
-- Saved request and response artifacts: `runs/*`
+## Running a simple first experiment
 
-These are ignored by git.
+This is the shortest end-to-end setup for running the sample essay experiment in a fresh environment.
 
-## First-pass scope
+### 1. Build the backend server
 
-The current scaffold supports:
+```bash
+cd third_party/llama-cpp-turboquant
+cmake -B build -DLLAMA_BUILD_SERVER=ON -DGGML_METAL=ON
+cmake --build build --target llama-server -j
+cd ../..
+```
 
-- local `llama-server` lifecycle management
-- plain chat
-- streaming chat
-- JSON-schema chat
-- file-driven terminal usage
-- split configuration for model, server, request, profile, and cache experiments
+### 2. Install the Python package
 
-Not implemented yet:
+After making sure you are in a python environment:
 
-- multi-turn persisted conversations
-- automatic summarization of overflowing context
-- model-agnostic adapters beyond `llama.cpp`
-- judge/evaluation pipelines
-- benchmark dashboards
+```bash
+python3 -m pip install -e .
+```
+
+### 3. Confirm the sample model path
+
+The sample profile uses [configs/models/gemma4.toml](/Users/danielparsons/Documents/Development/EssayLensTesting/configs/models/gemma4.toml), which points to:
+
+```text
+assets/models/gemma-4-E4B-it-Q4_K_M.gguf
+```
+
+If your GGUF file has a different name, update that config file first.
+
+### 4. Inspect the resolved experiment config
+
+```bash
+essaylens config show --profile essay-feedback
+```
+
+### 5. Start the server with Metal
+
+```bash
+essaylens-server start \
+  --model assets/models/gemma-4-E4B-it-Q4_K_M.gguf \
+  --device MTL0 \
+  --ctx-size 8192 \
+  --flash-attn on
+```
+
+Verify it is ready:
+
+```bash
+essaylens-server verify
+```
+
+### 6. Run the sample essay experiment
+
+This uses [inputs/sample_essay.md](/Users/danielparsons/Documents/Development/EssayLensTesting/inputs/sample_essay.md) with the `essay-feedback` profile.
+
+```bash
+essaylens chat \
+  --profile essay-feedback \
+  --input inputs/sample_essay.md
+```
+
+### 7. Save run artifacts
+
+```bash
+essaylens chat \
+  --profile essay-feedback \
+  --input inputs/sample_essay.md \
+  --save-run
+```
+
+This writes resolved config, prompts, request payload, and response artifacts under `runs/`.
+
+### 8. Try a KV/cache experiment
+
+```bash
+essaylens chat \
+  --profile essay-feedback \
+  --input inputs/sample_essay.md \
+  --preset kv-turbo3 \
+  --preset ctx-32k \
+  --save-run
+```
+
+### 9. Run the sample batch file
+
+The sample batch file is [inputs/essay_batch.toml](/Users/danielparsons/Documents/Development/EssayLensTesting/inputs/essay_batch.toml).
+
+```bash
+essaylens run-batch \
+  --profile essay-feedback \
+  --batch-file inputs/essay_batch.toml \
+  --save-run
+```
+
+### 10. Stop the server
+
+```bash
+essaylens-server stop
+```

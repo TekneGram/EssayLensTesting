@@ -1,0 +1,2 @@
+path = "assets/models/gemma-4-E4B-it-Q4_K_M.gguf"
+alias = "local"

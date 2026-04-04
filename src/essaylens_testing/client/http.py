@@ -97,6 +97,14 @@ def get_models(connection: ServerConnection) -> Any:
     return request_json(connection, "GET", "/v1/models")
 
 
+def post_json_payload(connection: ServerConnection, path: str, payload: dict[str, Any]) -> Any:
+    return request_json(connection, "POST", path, payload)
+
+
+def post_stream_payload(connection: ServerConnection, path: str, payload: dict[str, Any]) -> list[dict[str, Any] | str]:
+    return request_stream(connection, path, payload)
+
+
 def post_completion(connection: ServerConnection, prompt: str) -> Any:
     return request_json(
         connection,

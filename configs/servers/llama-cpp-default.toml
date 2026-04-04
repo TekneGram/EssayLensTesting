@@ -1,0 +1,11 @@
+host = "127.0.0.1"
+port = 8080
+device = "MTL0"
+ctx_size = 8192
+flash_attn = "auto"
+cache_type_k = "f16"
+cache_type_v = "f16"
+enable_props = false
+enable_rerank = false
+embeddings_only = false
+extra_args = []

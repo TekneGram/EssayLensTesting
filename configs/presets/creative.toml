@@ -1,0 +1,5 @@
+description = "Higher variance sampling."
+
+[request]
+temperature = 0.8
+top_p = 0.98

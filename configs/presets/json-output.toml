@@ -1,0 +1,4 @@
+description = "Use JSON schema output mode."
+
+[request]
+schema_file = "prompts/feedback_schema.json"

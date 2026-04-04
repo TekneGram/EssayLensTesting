@@ -1,0 +1,4 @@
+model = "gemma4"
+server = "llama-cpp-default"
+request = "essay-feedback"
+presets = ["fa-on", "ctx-8k", "kv-f16", "deterministic"]

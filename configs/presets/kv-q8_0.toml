@@ -1,0 +1,5 @@
+description = "Use q8_0 KV cache."
+
+[server]
+cache_type_k = "q8_0"
+cache_type_v = "q8_0"

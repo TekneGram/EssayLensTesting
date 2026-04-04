@@ -1,0 +1,4 @@
+description = "Prefer Apple Metal."
+
+[server]
+device = "MTL0"

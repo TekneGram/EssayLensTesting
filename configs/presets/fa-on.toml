@@ -1,0 +1,4 @@
+description = "Enable flash attention."
+
+[server]
+flash_attn = "on"

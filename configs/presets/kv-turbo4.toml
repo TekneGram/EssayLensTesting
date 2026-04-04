@@ -1,0 +1,5 @@
+description = "Use turbo4 KV cache."
+
+[server]
+cache_type_k = "turbo4"
+cache_type_v = "turbo4"

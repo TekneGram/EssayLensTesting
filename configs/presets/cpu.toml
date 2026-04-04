@@ -1,0 +1,4 @@
+description = "Force CPU execution."
+
+[server]
+device = "none"

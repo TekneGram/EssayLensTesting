@@ -1,0 +1,5 @@
+description = "Moderate creativity for balanced outputs."
+
+[request]
+temperature = 0.4
+top_p = 0.95

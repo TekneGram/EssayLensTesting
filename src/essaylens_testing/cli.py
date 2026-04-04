@@ -3,8 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tomllib
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 from essaylens_testing import __version__
 from essaylens_testing.client.capabilities import REQUEST_MODES, capability_payload
@@ -23,8 +24,14 @@ from essaylens_testing.client.http import (
     post_props,
     post_rerank,
     post_responses,
+    post_json_payload,
+    post_stream_payload,
 )
+from essaylens_testing.client.payloads import build_request_payload
+from essaylens_testing.config import parse_cli_overrides, resolve_profile, resolved_config_payload
+from essaylens_testing.io import load_schema_payload, load_system_prompt, read_text_file, render_user_prompt
 from essaylens_testing.paths import get_project_paths
+from essaylens_testing.runs import create_run_directory, write_json, write_text
 from essaylens_testing.server.manager import (
     ServerLaunchOptions,
     default_model_path,
@@ -97,10 +104,22 @@ def build_parser() -> argparse.ArgumentParser:
     config_subparsers = config_parser.add_subparsers(dest="config_command")
     config_show_parser = config_subparsers.add_parser(
         "show",
-        help="Placeholder for profile inspection.",
+        help="Show resolved profile configuration.",
     )
-    config_show_parser.add_argument("--profile", help="Profile name to inspect.")
-    config_show_parser.set_defaults(handler=_not_implemented)
+    config_show_parser.add_argument("--profile", required=True, help="Profile name to inspect.")
+    config_show_parser.add_argument(
+        "--preset",
+        action="append",
+        default=[],
+        help="Additional preset override to apply. Repeat as needed.",
+    )
+    config_show_parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        help="Override config fields using section.key=value. Repeat as needed.",
+    )
+    config_show_parser.set_defaults(handler=_handle_config_show)
 
     server_parser = subparsers.add_parser(
         "server",
@@ -217,22 +236,61 @@ def build_parser() -> argparse.ArgumentParser:
 
     chat_parser = subparsers.add_parser(
         "chat",
-        help="Placeholder for chat requests.",
+        help="Run a profile-driven prompt request.",
     )
-    chat_parser.add_argument("--profile", help="Profile name to use.")
+    chat_parser.add_argument("--profile", required=True, help="Profile name to use.")
     chat_parser.add_argument("--input", type=Path, help="Input file path.")
-    chat_parser.add_argument("--stream", action="store_true", help="Enable streaming mode.")
+    chat_parser.add_argument(
+        "--preset",
+        action="append",
+        default=[],
+        help="Additional preset override to apply. Repeat as needed.",
+    )
+    chat_parser.add_argument(
+        "--system-prompt-file",
+        type=Path,
+        help="Override the resolved system prompt file.",
+    )
+    chat_parser.add_argument("--stream", action="store_true", help="Force streaming mode.")
     chat_parser.add_argument("--schema", type=Path, help="JSON schema path.")
-    chat_parser.set_defaults(handler=_not_implemented)
+    chat_parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        help="Override config fields using section.key=value. Repeat as needed.",
+    )
+    chat_parser.add_argument(
+        "--save-run",
+        action="store_true",
+        help="Save resolved config, prompt, and response artifacts under runs/.",
+    )
+    chat_parser.add_argument(
+        "--start-server",
+        action="store_true",
+        help="Start and stop a managed server for this request.",
+    )
+    chat_parser.set_defaults(handler=_handle_chat)
 
     batch_parser = subparsers.add_parser(
         "run-batch",
-        help="Placeholder for batch execution.",
+        help="Run a sequential batch of prompt experiments.",
     )
-    batch_parser.add_argument("--profile", help="Profile name to use.")
-    batch_parser.add_argument("--batch-file", type=Path, help="Batch input file.")
+    batch_parser.add_argument("--profile", required=True, help="Profile name to use.")
+    batch_parser.add_argument("--batch-file", type=Path, required=True, help="Batch input TOML file.")
+    batch_parser.add_argument(
+        "--preset",
+        action="append",
+        default=[],
+        help="Additional preset override to apply to all cases. Repeat as needed.",
+    )
+    batch_parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        help="Override config fields using section.key=value. Repeat as needed.",
+    )
     batch_parser.add_argument("--save-run", action="store_true", help="Save run artifacts.")
-    batch_parser.set_defaults(handler=_not_implemented)
+    batch_parser.set_defaults(handler=_handle_run_batch)
 
     return parser
 
@@ -287,6 +345,16 @@ def _handle_request(args: argparse.Namespace) -> int:
     connection = _resolve_connection(args)
     result = _dispatch_request(args.mode, connection, args.text)
     print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def _handle_config_show(args: argparse.Namespace) -> int:
+    resolved = resolve_profile(
+        args.profile,
+        preset_names=args.preset,
+        cli_overrides=parse_cli_overrides(args.set),
+    )
+    print(json.dumps(resolved_config_payload(resolved), indent=2, sort_keys=True))
     return 0
 
 
@@ -350,6 +418,134 @@ def _handle_server_verify_all(args: argparse.Namespace) -> int:
     result = verify_all_server_modes(options)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
+
+
+def _handle_chat(args: argparse.Namespace) -> int:
+    cli_overrides = parse_cli_overrides(args.set)
+    request_cli_overrides = cli_overrides.setdefault("request", {})
+    if args.stream:
+        request_cli_overrides["stream"] = True
+    if args.schema:
+        request_cli_overrides["schema_file"] = str(args.schema)
+    if args.system_prompt_file:
+        request_cli_overrides["system_prompt_file"] = str(args.system_prompt_file)
+    if args.input:
+        request_cli_overrides["input_file"] = str(args.input)
+
+    resolved = resolve_profile(
+        args.profile,
+        preset_names=args.preset,
+        cli_overrides=cli_overrides,
+    )
+    execution = _execute_resolved_request(
+        resolved,
+        run_label=args.profile,
+        save_run=args.save_run,
+        start_server=args.start_server,
+    )
+    print(json.dumps(execution["result"], indent=2, sort_keys=True))
+    return 0
+
+
+def _handle_run_batch(args: argparse.Namespace) -> int:
+    batch_path = args.batch_file
+    with batch_path.open("rb") as handle:
+        payload = tomllib.load(handle)
+
+    raw_cases = payload.get("cases")
+    if not isinstance(raw_cases, list) or not raw_cases:
+        raise RuntimeError("Batch file must define at least one [[cases]] entry.")
+
+    batch_cli_overrides = parse_cli_overrides(args.set)
+    cases: list[dict[str, Any]] = []
+    run_dir = create_run_directory(f"batch-{args.profile}") if args.save_run else None
+    server_started = False
+    active_name = f"batch-{args.profile}"
+
+    try:
+        for index, raw_case in enumerate(raw_cases, start=1):
+            if not isinstance(raw_case, dict):
+                raise RuntimeError("Each [[cases]] entry must be a TOML table.")
+            case_name = str(raw_case.get("name") or f"case-{index}")
+            case_presets = [*args.preset, *[str(item) for item in raw_case.get("presets", [])]]
+            case_overrides = _merge_cli_override_dicts(
+                batch_cli_overrides,
+                {
+                    "model": dict(raw_case.get("model_overrides", {})),
+                    "server": dict(raw_case.get("server_overrides", {})),
+                    "request": dict(raw_case.get("request_overrides", {})),
+                },
+            )
+            request_case_overrides = case_overrides.setdefault("request", {})
+            if raw_case.get("input_file"):
+                request_case_overrides["input_file"] = str(raw_case["input_file"])
+            if raw_case.get("prompt_file"):
+                request_case_overrides["prompt_file"] = str(raw_case["prompt_file"])
+            if raw_case.get("system_prompt_file"):
+                request_case_overrides["system_prompt_file"] = str(raw_case["system_prompt_file"])
+            if raw_case.get("schema_file"):
+                request_case_overrides["schema_file"] = str(raw_case["schema_file"])
+            if "stream" in raw_case:
+                request_case_overrides["stream"] = bool(raw_case["stream"])
+
+            resolved = resolve_profile(
+                args.profile,
+                preset_names=case_presets,
+                cli_overrides=case_overrides,
+            )
+            if not server_started:
+                _start_managed_server_for_resolved(resolved, active_name)
+                server_started = True
+            else:
+                current_server_options = _server_identity_tuple(resolved)
+                previous_server_options = _server_identity_tuple(cases[-1]["resolved"])
+                if current_server_options != previous_server_options:
+                    stop_server(active_name)
+                    _start_managed_server_for_resolved(resolved, active_name)
+
+            execution = _execute_resolved_request(
+                resolved,
+                run_label=case_name,
+                save_run=False,
+                start_server=False,
+                managed_name=active_name,
+            )
+            case_record = {
+                "name": case_name,
+                "resolved": resolved,
+                "payload": resolved_config_payload(resolved),
+                "result": execution["result"],
+            }
+            cases.append(case_record)
+            if run_dir is not None:
+                case_dir = run_dir / f"{index:03d}-{case_name}"
+                case_dir.mkdir(parents=True, exist_ok=True)
+                write_json(case_dir / "resolved_config.json", case_record["payload"])
+                write_json(case_dir / "request_payload.json", execution["request_payload"])
+                write_json(case_dir / "response.json", execution["result"])
+                write_text(case_dir / "user_prompt.txt", execution["user_prompt"])
+                if execution["system_prompt"] is not None:
+                    write_text(case_dir / "system_prompt.txt", execution["system_prompt"])
+    finally:
+        if server_started:
+            stop_server(active_name)
+
+    summary = {
+        "profile": args.profile,
+        "count": len(cases),
+        "cases": [
+            {
+                "name": item["name"],
+                "result": item["result"],
+            }
+            for item in cases
+        ],
+    }
+    if run_dir is not None:
+        summary["run_dir"] = str(run_dir)
+        write_json(run_dir / "summary.json", summary)
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0
 
 
 def _not_implemented(args: argparse.Namespace) -> int:
@@ -446,3 +642,121 @@ def _dispatch_request(mode: str, connection: ServerConnection, text: str) -> obj
     if mode == "props-set":
         return post_props(connection)
     raise RuntimeError(f"Unsupported request mode: {mode}")
+
+
+def _execute_resolved_request(
+    resolved,
+    *,
+    run_label: str,
+    save_run: bool,
+    start_server: bool,
+    managed_name: str | None = None,
+) -> dict[str, Any]:
+    request = resolved.request
+    input_text = None
+    if request.input_file:
+        input_text = read_text_file(request.input_file)
+    user_prompt = render_user_prompt(request, input_text=input_text)
+    system_prompt = load_system_prompt(request)
+    schema = load_schema_payload(request)
+    path, payload = build_request_payload(
+        request,
+        model=resolved.model,
+        user_prompt=user_prompt,
+        system_prompt=system_prompt,
+        schema=schema,
+    )
+
+    server_name = managed_name or resolved.profile_name
+    if start_server:
+        _start_managed_server_for_resolved(resolved, server_name)
+    try:
+        connection = _resolve_connection_from_resolved(resolved, server_name)
+        if request.stream:
+            result = post_stream_payload(connection, path, payload)
+        else:
+            result = post_json_payload(connection, path, payload)
+    finally:
+        if start_server:
+            stop_server(server_name)
+
+    artifact_dir = None
+    if save_run:
+        artifact_dir = create_run_directory(run_label)
+        write_json(artifact_dir / "resolved_config.json", resolved_config_payload(resolved))
+        write_json(artifact_dir / "request_payload.json", payload)
+        write_json(artifact_dir / "response.json", result)
+        write_text(artifact_dir / "user_prompt.txt", user_prompt)
+        if system_prompt is not None:
+            write_text(artifact_dir / "system_prompt.txt", system_prompt)
+
+    execution: dict[str, Any] = {
+        "result": result,
+        "user_prompt": user_prompt,
+        "system_prompt": system_prompt,
+        "request_payload": payload,
+    }
+    if artifact_dir is not None:
+        execution["run_dir"] = str(artifact_dir)
+    return execution
+
+
+def _resolve_connection_from_resolved(resolved, server_name: str) -> ServerConnection:
+    status = get_status(server_name)
+    if status.running and status.host and status.port:
+        return ServerConnection(host=status.host, port=status.port)
+    return ServerConnection(host=resolved.server.host, port=resolved.server.port)
+
+
+def _start_managed_server_for_resolved(resolved, name: str) -> None:
+    current = get_status(name)
+    if current.running:
+        stop_server(name)
+    options = ServerLaunchOptions(
+        name=name,
+        host=resolved.server.host,
+        port=resolved.server.port,
+        model=resolved.model.path,
+        device=resolved.server.device,
+        ctx_size=resolved.server.ctx_size,
+        flash_attn=resolved.server.flash_attn,
+        cache_type_k=resolved.server.cache_type_k,
+        cache_type_v=resolved.server.cache_type_v,
+        enable_props=resolved.server.enable_props,
+        enable_rerank=resolved.server.enable_rerank,
+        embeddings_only=resolved.server.embeddings_only,
+        extra_args=resolved.server.extra_args,
+    )
+    start_server(options)
+
+
+def _server_identity_tuple(resolved) -> tuple[object, ...]:
+    server = resolved.server
+    return (
+        str(resolved.model.path),
+        server.host,
+        server.port,
+        server.device,
+        server.ctx_size,
+        server.flash_attn,
+        server.cache_type_k,
+        server.cache_type_v,
+        server.enable_props,
+        server.enable_rerank,
+        server.embeddings_only,
+        tuple(server.extra_args),
+    )
+
+
+def _merge_cli_override_dicts(
+    base: dict[str, dict[str, Any]],
+    extra: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    merged = {
+        "model": dict(base.get("model", {})),
+        "server": dict(base.get("server", {})),
+        "request": dict(base.get("request", {})),
+    }
+    for section in ("model", "server", "request"):
+        merged[section].update(extra.get(section, {}))
+    return merged

@@ -1,0 +1,5 @@
+description = "Use fp16 KV cache."
+
+[server]
+cache_type_k = "f16"
+cache_type_v = "f16"

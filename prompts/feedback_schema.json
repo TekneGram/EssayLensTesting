@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "thesis": {"type": "string"},
+    "evidence": {"type": "string"},
+    "structure": {"type": "string"},
+    "style": {"type": "string"},
+    "next_revision_step": {"type": "string"}
+  },
+  "required": ["thesis", "evidence", "structure", "style", "next_revision_step"],
+  "additionalProperties": false
+}

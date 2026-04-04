@@ -1,0 +1,9 @@
+[[cases]]
+name = "sample-essay"
+input_file = "inputs/sample_essay.md"
+presets = ["ctx-8k", "kv-f16"]
+
+[[cases]]
+name = "sample-essay-turbo3"
+input_file = "inputs/sample_essay.md"
+presets = ["ctx-32k", "kv-turbo3"]

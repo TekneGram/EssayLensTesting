@@ -1,0 +1,4 @@
+description = "Allow longer generations."
+
+[request]
+max_tokens = 1024
