@@ -95,9 +95,9 @@ def build_server_command(options: ServerLaunchOptions) -> list[str]:
     if options.enable_props:
         command.append("--props")
     if options.enable_rerank:
-        command.append("--rerank")
+        command.append("--reranking")
     if options.embeddings_only:
-        command.append("--embeddings")
+        command.append("--embedding")
     command.extend(options.extra_args)
     return command
 

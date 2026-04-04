@@ -36,6 +36,7 @@ from essaylens_testing.server.manager import (
     verify_server,
 )
 from essaylens_testing.server.runtime import get_server_runtime_info
+from essaylens_testing.server.verification import verify_all_server_modes
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -174,6 +175,46 @@ def build_parser() -> argparse.ArgumentParser:
     _add_server_common_arguments(verify_parser, include_connection=False, include_model=False)
     verify_parser.set_defaults(handler=_handle_server_verify)
 
+    verify_all_parser = server_subparsers.add_parser(
+        "verify-all",
+        help="Start the server, exercise all supported request modes, and stop it cleanly.",
+    )
+    _add_server_common_arguments(verify_all_parser, default_name="verify", include_connection=True)
+    verify_all_parser.add_argument(
+        "--device",
+        default="MTL0",
+        help="Device selection passed to llama-server. Falls back to 'none' if startup fails.",
+    )
+    verify_all_parser.add_argument(
+        "--ctx-size",
+        type=int,
+        default=8192,
+        help="Context size to pass to llama-server.",
+    )
+    verify_all_parser.add_argument(
+        "--flash-attn",
+        default="auto",
+        choices=("on", "off", "auto"),
+        help="Flash attention setting.",
+    )
+    verify_all_parser.add_argument(
+        "--cache-type-k",
+        default="f16",
+        help="KV cache type for K.",
+    )
+    verify_all_parser.add_argument(
+        "--cache-type-v",
+        default="f16",
+        help="KV cache type for V.",
+    )
+    verify_all_parser.add_argument(
+        "--llama-arg",
+        action="append",
+        default=[],
+        help="Extra argument to pass through to llama-server. Repeat as needed.",
+    )
+    verify_all_parser.set_defaults(handler=_handle_server_verify_all)
+
     chat_parser = subparsers.add_parser(
         "chat",
         help="Placeholder for chat requests.",
@@ -289,6 +330,28 @@ def _handle_server_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_server_verify_all(args: argparse.Namespace) -> int:
+    model = args.model or default_model_path()
+    options = ServerLaunchOptions(
+        name=args.name,
+        host=args.host,
+        port=args.port,
+        model=model,
+        device=args.device,
+        ctx_size=args.ctx_size,
+        flash_attn=args.flash_attn,
+        cache_type_k=args.cache_type_k,
+        cache_type_v=args.cache_type_v,
+        enable_props=False,
+        enable_rerank=False,
+        embeddings_only=False,
+        extra_args=tuple(args.llama_arg),
+    )
+    result = verify_all_server_modes(options)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result["ok"] else 1
+
+
 def _not_implemented(args: argparse.Namespace) -> int:
     command_path = [args.command]
     for attr in ("config_command", "server_command"):
@@ -302,12 +365,13 @@ def _not_implemented(args: argparse.Namespace) -> int:
 def _add_server_common_arguments(
     parser: argparse.ArgumentParser,
     *,
+    default_name: str = "default",
     include_connection: bool = True,
     include_model: bool = True,
 ) -> None:
     parser.add_argument(
         "--name",
-        default="default",
+        default=default_name,
         help="Managed server instance name.",
     )
     parser.add_argument(
