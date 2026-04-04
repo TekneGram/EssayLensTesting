@@ -16,6 +16,7 @@ Server functionality comes first. Before building broader harness features, the 
    - streaming chat requests
    - JSON-schema chat requests
    - any additional llama.cpp/OpenAI-compatible call the harness intends to expose
+   This matrix is recorded in `SERVER_CAPABILITY_MATRIX.md` and becomes the contract for all later verification work.
 
 2. Build only the minimum editable Python package needed to drive those server behaviors.
    Create the package/module structure required for `pip install -e .` and for a CLI that can launch, query, and stop the vendored `llama-server`.
