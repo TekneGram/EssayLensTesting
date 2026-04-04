@@ -4,6 +4,10 @@
 
 Server functionality comes first. Before building broader harness features, the project must be able to start the local `llama.cpp` server and successfully perform every supported request type against it. After that point, every later development step must re-verify that the full server workflow still works unchanged.
 
+Normal local Terminal validation is the source of truth for Metal/GPU verification. Codex-managed runs may not have reliable Metal device access, so GPU-capability checks must be confirmed in a standard user shell before treating Metal as broken on the machine.
+
+For user-facing defaults, the app should prefer Metal/GPU execution when available. CPU fallback is a Codex-sandbox testing workaround only and must not become the normal default behavior for local users.
+
 ## Step-by-Step Plan
 
 1. Define the complete server capability matrix up front.
@@ -34,6 +38,7 @@ Server functionality comes first. Before building broader harness features, the 
    - exercise every supported request mode
    - confirm each response is valid enough to prove success
    - stop the server cleanly
+   - record whether verification was performed in a normal local Terminal session or in a Codex-managed environment when GPU/Metal is involved
 
 6. Make the full server verification suite the gate for every later step.
    No later work counts as complete unless the same suite still passes after the change.
@@ -60,3 +65,18 @@ After step 4, every subsequent change must preserve this invariant:
 - the app can stop the server cleanly
 
 If any of those regress, the step is not done.
+
+## Environment Note
+
+Metal verification has already been tested on this machine and is known to work in a normal Terminal session with the local `llama.cpp` server build. A prior Metal failure observed from within Codex was environmental rather than a confirmed `llama.cpp` or machine-level problem.
+
+Because of that, server verification should distinguish between:
+
+- normal local shell verification, which is authoritative for Metal/GPU support
+- Codex-managed verification, which is still useful for CPU/server logic but may not reliably prove Metal availability
+
+Accordingly:
+
+- `essaylens-server` should default to Metal-oriented local execution for the user
+- CPU-only execution should be used by Codex only when sandbox constraints prevent reliable Metal validation
+- documentation and error messages should not steer the user toward CPU as the default path unless Metal has actually failed in the user's own shell

@@ -69,65 +69,95 @@ presets = ["kv-cache-reuse"]
 
 ## Usage
 
-### Inspect a profile
+The current scaffold exposes direct server lifecycle and request commands. The profile/config-driven workflow described above is planned, but it is not the current user-facing path yet.
+
+### Show local paths and capability surface
 
 ```bash
-essaylens config show --profile local-gemma-fast
+essaylens info
+essaylens capabilities
 ```
 
 ### Start a server
 
+By default, `essaylens-server` now prefers Metal for normal local use.
+
 ```bash
-essaylens server start --profile local-gemma-fast
+essaylens-server start --port 8080
 ```
 
-### Check status
+If you want CPU-only instead:
 
 ```bash
-essaylens server status --profile local-gemma-fast
+essaylens-server start --port 8080 --device none
 ```
 
-### Stop a server
+You can also pass the model path explicitly:
 
 ```bash
-essaylens server stop --profile local-gemma-fast
+essaylens-server start \
+  --port 8080 \
+  --model assets/models/gemma-4-E4B-it-Q4_K_M.gguf \
+  --ctx-size 2048
 ```
 
-### Simple chat from a file
+### Check server status and readiness
 
 ```bash
-essaylens chat \
-  --profile local-gemma-fast \
-  --input inputs/essays/sample_essay.md
+essaylens-server status
+essaylens-server verify
 ```
 
-### Streaming chat
+### Stop a managed server
 
 ```bash
-essaylens chat \
-  --profile long-context-eval \
-  --input inputs/essays/sample_essay.md \
-  --stream
+essaylens-server stop
 ```
 
-### JSON schema chat
+### Send requests to a running server
+
+Using an explicit host and port:
 
 ```bash
-essaylens chat \
-  --profile local-gemma-json \
-  --input inputs/essays/sample_essay.md \
-  --schema prompts/schemas/essay_feedback.schema.json
+essaylens request models --host 127.0.0.1 --port 8080
+essaylens request completion --host 127.0.0.1 --port 8080 --text "Essay feedback should be"
+essaylens request chat --host 127.0.0.1 --port 8080 --text "Give feedback on this essay."
+essaylens request chat-stream --host 127.0.0.1 --port 8080 --text "Count from 1 to 3."
+essaylens request chat-json --host 127.0.0.1 --port 8080 --text "Return a JSON object with answer set to hello."
+essaylens request completion-json --host 127.0.0.1 --port 8080 --text "Return a JSON object with answer set to hello."
+essaylens request embeddings --host 127.0.0.1 --port 8080 --text "Essay feedback should be specific."
+essaylens request responses --host 127.0.0.1 --port 8080 --text "Say hello in one short sentence."
+essaylens request anthropic-messages --host 127.0.0.1 --port 8080 --text "Say hello in one short sentence."
+essaylens request anthropic-count-tokens --host 127.0.0.1 --port 8080 --text "Say hello in one short sentence."
+essaylens request rerank --host 127.0.0.1 --port 8080 --text "Which sentence is about essay feedback?"
+essaylens request props-get --host 127.0.0.1 --port 8080
+essaylens request props-set --host 127.0.0.1 --port 8080
 ```
 
-### Batch run from a list of files
-
-Create a text file with one input path per line, then run:
+If you started the default managed server, you can omit host and port:
 
 ```bash
-essaylens run-batch \
-  --profile local-gemma-fast \
-  --batch-file inputs/batches/my_batch.txt \
-  --save-run
+essaylens request chat --name default --text "Give feedback on this essay."
+```
+
+### Direct `llama-server` invocation
+
+If you want to bypass the Python CLI entirely:
+
+```bash
+third_party/llama-cpp-turboquant/build/bin/llama-server \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --model assets/models/gemma-4-E4B-it-Q4_K_M.gguf \
+  --ctx-size 2048
+```
+
+### Verifying Metal use
+
+When running in a normal local Terminal session, check the server log for Metal usage:
+
+```bash
+grep -nE "using device|offloading|MTL" /tmp/llama_server_metal.log
 ```
 
 ## Runtime files
